@@ -334,6 +334,10 @@ diagnosticarRed() {
             return 0
         fi
         if ip link show "$interfaz" &>/dev/null; then
+            if ip link show "$interfaz" | grep -q "state DOWN"; then
+                echo -e "${ROJO}La interfaz '$interfaz' está apagada. Enciéndala e intente nuevamente.${SC}"
+                return 1
+            fi
             break
         else
             echo -e "${ROJO}La interfaz '$interfaz' no existe. Intente de nuevo.${SC}"
@@ -424,4 +428,3 @@ done
 # sudo apt install iftop
 # sudo apt install bsdmainutils
 # sudo apt install iproute2
-

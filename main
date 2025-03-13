@@ -17,11 +17,12 @@ opciones=("Gestión de seguridad" "Gestión de usuarios" "Gestión de red" "Admi
 mostrarMenu() {
     echo -e "${ROJO}=== HERRAMIENTA DE ADMINISTRACIÓN DE SISTEMAS ==="
     for i in "${!opciones[@]}"; do
-        echo -e "${VERDE}$((i+1)). ${opciones[$i]}"
+        echo -e "${VERDE}$((i + 1)). ${opciones[$i]}"
     done
     echo ""
 }
 
+# BARRA DE CARGA
 barraCarga() {
     local total=40
     for ((i = 0; i <= total; i++)); do
