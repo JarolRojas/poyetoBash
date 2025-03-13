@@ -11,12 +11,6 @@ BLANCO='\033[1;37m'
 GRIS='\033[0;37m'
 SC='\033[0m'
 
-# COMPROBAR SI ES ROOT
-if [[ $EUID -ne 0 ]]; then
-    echo -e "${ROJO}Este script debe ser ejecutado como root.${SC}"
-    exit 1
-fi
-
 # MOSTRAR MENU
 opciones=("Gestión de seguridad" "Gestión de usuarios" "Gestión de red" "Administración del sistema" "Conexión remota" "Salir")
 
@@ -28,8 +22,6 @@ mostrarMenu() {
     echo ""
 }
 
-
-# BARRA DE CARGA
 barraCarga() {
     local total=40
     for ((i = 0; i <= total; i++)); do
@@ -100,8 +92,7 @@ while true; do
         bash ./conexion
         ;;
     6)
-        echo ""
-        echo "Saliendo..."
+        echo "\nSaliendo..."
         sleep 1
         clear
         exit

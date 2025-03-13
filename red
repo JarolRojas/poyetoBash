@@ -12,7 +12,7 @@ GRIS='\033[0;37m'
 SC='\033[0m'
 
 # MOSTRAR MENU
-opciones=("Listar interfaces" "Añadir interfaz" "Eliminar interfaz" "Modificar interfaz" "Encender/Apagar interfaz" "Monitorear red" "Diagnóstico de conectividad" "Ver usuarios en red" "Salir")
+opciones=("Listar interfaces" "Añadir interfaz" "Eliminar interfaz" "Modificar interfaz" "Encender/Apagar interfaz" "Monitorear red" "Diagnóstico de conectividad" "Salir")
 mostrarMenu() {
     clear
     echo -e "${ROJO}=== GESTIONAR RED ==="
@@ -300,13 +300,67 @@ encenderApagarInterfaz() {
 
 # Monitorear red
 monitorearRed() {
-    echo -e "\n${AMARILLO}Monitoreo de red:${SC} en proceso"
+    listarInterfaces
+    echo -e "\n${AMARILLO}Monitorear Red:${SC}"
+    while true; do
+        echo -ne "${MORADO}Ingrese el nombre de la interfaz a monitorear(o 'q' para salir): ${AMARILLO}"
+        read -r interfaz
+        if [[ "$interfaz" == "q" || "$interfaz" == "Q" ]]; then
+            echo -e "${SC}Saliendo Monitorear Red..."
+            return 0
+        fi
+        if ip link show "$interfaz" &>/dev/null; then
+            break
+        else
+            echo -e "${ROJO}La interfaz '$interfaz' no existe. Intente de nuevo.${SC}"
+        fi
+    done
+    echo -e "${SC}Cargando monitor..."
+    sleep 1
+    echo "Presiona CTRL + C para cerrar el proceso. (Espera)"
+    sleep 3
+    iftop -i $interfaz
 }
 
-# Función placeholder para Ver Usuarios en Red
-verUsuariosRed() {
-    sudo arp-scan -l
-    pulsaFin
+diagnosticarRed() {
+    listarInterfaces
+    echo -e "\n${AMARILLO}Diagnóstico de conectividad:${SC}"
+
+    while true; do
+        echo -ne "${MORADO}Ingrese el nombre de la interfaz a diagnosticar (o 'q' para salir): ${AMARILLO}"
+        read -r interfaz
+        if [[ "$interfaz" == "q" || "$interfaz" == "Q" ]]; then
+            echo -e "${SC}Saliendo del diagnóstico..."
+            return 0
+        fi
+        if ip link show "$interfaz" &>/dev/null; then
+            break
+        else
+            echo -e "${ROJO}La interfaz '$interfaz' no existe. Intente de nuevo.${SC}"
+        fi
+    done
+
+    echo -e "\n${AZUL}=== Diagnóstico de '$interfaz' ===${SC}"
+
+    echo -e "\n${CYAN}1. Estado de la interfaz:${SC}"
+    ip link show "$interfaz"
+
+    echo -e "\n${CYAN}2. IP asignada:${SC}"
+    ip -4 addr show dev "$interfaz" | grep inet || echo -e "${ROJO}No tiene IP asignada${SC}"
+
+    echo -e "\n${CYAN}3. Tabla de rutas:${SC}"
+    ip route show dev "$interfaz"
+
+    echo -e "\n${CYAN}4. Prueba de ping (8.8.8.8 - Google DNS):${SC}"
+    ping -c 4 -I "$interfaz" 8.8.8.8 && echo -e "${VERDE}Conectividad OK${SC}" || echo -e "${ROJO}Error en la conexión${SC}"
+
+    echo -e "\n${CYAN}5. ARP Scan (detección de dispositivos en la red local):${SC}"
+    arp-scan --interface="$interfaz" --localnet || echo -e "${ROJO}Error al ejecutar ARP Scan${SC}"
+
+    echo -e "\n${CYAN}6. Estadísticas de paquetes (números de errores, colisiones, etc.):${SC}"
+    ip -s link show "$interfaz"
+
+    echo -e "\n${AZUL}=== Diagnóstico completado ===${SC}"
 }
 
 # MAIN
@@ -317,7 +371,6 @@ fi
 
 while true; do
     mostrarMenu
-
     while true; do
         echo -en "${MORADO}Elige una opción: ${AMARILLO}"
         read -r opcion
@@ -350,14 +403,14 @@ while true; do
         pulsaFin
         ;;
     6)
-        monitorearRed #POR TERMINAR
+        monitorearRed
         pulsaFin
         ;;
-    7) ;;
-    8)
-        verUsuariosRed #POR APROBAR
+    7)
+        diagnosticarRed
+        pulsaFin
         ;;
-    9)
+    8)
         exit
         ;;
     *)
