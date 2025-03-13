@@ -98,7 +98,6 @@ anadirInterfaz() {
     echo -en "\n${MORADO}Introduce el nombre de la nueva interfaz (q para salir): ${AMARILLO}"
     read nombreInterfaz
 
-    # Si el usuario escribe "q", se cancela el proceso
     if [[ "$nombreInterfaz" == "q" || "$nombreInterfaz" == "Q" ]]; then
         echo "Proceso cancelado."
         return
@@ -114,13 +113,11 @@ anadirInterfaz() {
         fi
     done
 
-    # Verificar si la interfaz ya existe
     if ip a show "$nombreInterfaz" &>/dev/null; then
         echo "La interfaz '$nombreInterfaz' ya existe. Intenta con otro nombre."
         return
     fi
 
-    # Solicitar la dirección IP (opcional)
     echo -en "${MORADO}Introduce la dirección IP/Máscara (opcional, presiona Enter para dejarlo vacío, o 'q' para salir): ${AMARILLO}"
     read ip
 
@@ -136,11 +133,9 @@ anadirInterfaz() {
         fi
     fi
 
-    # Crear la interfaz
     ip link add "$nombreInterfaz" type dummy
     echo -e "${SC}Interfaz '$nombreInterfaz' creada exitosamente."
 
-    # Si se ha proporcionado una IP, asignarla
     if [[ -n "$ip" ]]; then
         ip addr add "$ip" dev "$nombreInterfaz"
         echo -e "${SC}Dirección IP asignada a '$nombreInterfaz'."
@@ -426,5 +421,3 @@ done
 # PARA INSTALAR
 # sudo apt install arp-scan
 # sudo apt install iftop
-# sudo apt install bsdmainutils
-# sudo apt install iproute2
