@@ -1,18 +1,22 @@
 #!/bin/bash
 
 # COLORES
-ROJO='\033[0;31m'
-VERDE='\033[0;32m'
-AMARILLO='\033[1;33m'
 MORADO='\033[0;35m'
-AZUL='\033[0;34m'
-CYAN='\033[0;36m'
-BLANCO='\033[1;37m'
-GRIS='\033[0;37m'
-SC='\033[0m'
+AMARILLO='\033[1;33m'
+ROJO='\033[0;31m'
+SC='\033[0m' # Sin color
 
 # MOSTRAR MENU
-opciones=("Listar interfaces" "Añadir interfaz" "Eliminar interfaz" "Modificar interfaz" "Encender/Apagar interfaz" "Monitorear red" "Diagnóstico de conectividad" "Salir")
+opciones=(
+    "Listar interfaces de red"
+    "Añadir una interfaz"
+    "Eliminar una interfaz"
+    "Modificar una interfaz"
+    "Encender/Apagar una interfaz"
+    "Monitorear la red"
+    "Diagnosticar la red"
+    "Salir"
+)
 mostrarMenu() {
     clear
     echo -e "${ROJO}=== GESTIONAR RED ==="
@@ -55,7 +59,7 @@ validarIP() {
 
 # LISTAR INTERFACES
 listarInterfaces() {
-    echo -e "\n\nListado de todas las interfaces:"
+    echo -e "\n${AMARILLO}Listando interfaces de red...${SC}"
     echo -e "${CYAN}Nombre\t\tIP/Máscara\t\tEstado${SC}"
 
     ip -o link show | awk '{
@@ -94,6 +98,7 @@ listarInterfaces() {
 
 # AÑADIR INTERFAZ
 anadirInterfaz() {
+    echo -e "\n${AMARILLO}Añadiendo una nueva interfaz...${SC}"
     listarInterfaces
     echo -en "\n${MORADO}Introduce el nombre de la nueva interfaz (q para salir): ${AMARILLO}"
     read nombreInterfaz
@@ -150,6 +155,7 @@ anadirInterfaz() {
 
 # ELIMINAR INTERFAZ
 eliminarInterfaz() {
+    echo -e "\n${AMARILLO}Eliminando una interfaz...${SC}"
     listarInterfaces
 
     echo -en "${MORADO}\nIngrese el nombre de la interfaz a eliminar (q para salir): ${AMARILLO}"
@@ -197,8 +203,8 @@ eliminarInterfaz() {
 
 # MODIFICAR INTERFAZ
 modificarInterfaz() {
+    echo -e "\n${AMARILLO}Modificando una interfaz...${SC}"
     listarInterfaces
-    echo -e "\n${AMARILLO}Modificación de interfaz:${SC}"
     while true; do
         echo -ne "${MORADO}Ingrese el nombre de la interfaz a modificar (o 'q' para salir): ${AMARILLO}"
         read -r interfaz
@@ -244,8 +250,8 @@ modificarInterfaz() {
 
 # Encender/Apagar interfaz
 encenderApagarInterfaz() {
+    echo -e "\n${AMARILLO}Encendiendo o apagando una interfaz...${SC}"
     listarInterfaces
-    echo -e "\n${AMARILLO}Encender/Apagar Interfaz:${SC}"
 
     while true; do
         echo -ne "${MORADO}Ingrese el nombre de la interfaz (o 'q' para salir): ${AMARILLO}"
@@ -295,8 +301,8 @@ encenderApagarInterfaz() {
 
 # Monitorear red
 monitorearRed() {
+    echo -e "\n${AMARILLO}Monitoreando la red...${SC}"
     listarInterfaces
-    echo -e "\n${AMARILLO}Monitorear Red:${SC}"
     while true; do
         echo -ne "${MORADO}Ingrese el nombre de la interfaz a monitorear(o 'q' para salir): ${AMARILLO}"
         read -r interfaz
@@ -318,8 +324,8 @@ monitorearRed() {
 }
 
 diagnosticarRed() {
+    echo -e "\n${AMARILLO}Diagnosticando la red...${SC}"
     listarInterfaces
-    echo -e "\n${AMARILLO}Diagnóstico de conectividad:${SC}"
 
     while true; do
         echo -ne "${MORADO}Ingrese el nombre de la interfaz a diagnosticar (o 'q' para salir): ${AMARILLO}"
@@ -369,17 +375,25 @@ if [[ $EUID -ne 0 ]]; then
 fi
 
 while true; do
-    mostrarMenu
+    clear
+    echo -e "${MORADO}Menú de gestión de interfaces de red${SC}"
+    echo -e "${MORADO}===================================${SC}"
+    for i in "${!opciones[@]}"; do
+        echo -e "${AMARILLO}$((i + 1)). ${opciones[i]}${SC}"
+    done
+
+    # Solicitar una opción al usuario
     while true; do
         echo -en "${MORADO}Elige una opción: ${AMARILLO}"
         read -r opcion
-        if [[ $opcion -ge 1 && $opcion -le ${#opciones[@]} ]]; then
+        if [[ $opcion =~ ^[0-9]+$ ]] && ((opcion >= 1 && opcion <= ${#opciones[@]})); then
             break
         else
-            echo -e "${ROJO}Introduce una opción válida${SC}"
+            echo -e "${ROJO}Error: Ingresa un número entre 1 y ${#opciones[@]}${SC}"
         fi
     done
 
+    # Manejar la opción seleccionada
     case $opcion in
     1)
         listarInterfaces
@@ -391,7 +405,7 @@ while true; do
         ;;
     3)
         eliminarInterfaz
-        clear
+        pulsaFin
         ;;
     4)
         modificarInterfaz
@@ -410,14 +424,14 @@ while true; do
         pulsaFin
         ;;
     8)
-        exit
+        echo -e "${AMARILLO}Saliendo...${SC}"
+        exit 0
         ;;
     *)
-        echo -e "${ROJO}Opción incorrecta${SC}"
+        echo -e "${ROJO}Error interno: Opción no manejada${SC}"
         ;;
     esac
 done
-
 # PARA INSTALAR
 # sudo apt install arp-scan
 # sudo apt install iftop
