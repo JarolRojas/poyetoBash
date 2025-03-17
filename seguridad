@@ -1,0 +1,11 @@
+#!/bin/bash
+
+gestion_seguridad() {
+    opcion=$(zenity --list --title="Gestión de Seguridad" \
+    --column="Opción" --column="Acción" \
+    1 "Realizar copiar de seguridad" \
+    2 "Eliminar copia de seguridad" \
+    3 "Listar copia de seguridad" \
+    4 "Enviar informe por correo" \
+    5 "Volver al menú principal" --height=300)
+}
