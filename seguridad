@@ -1,11 +1,87 @@
 #!/bin/bash
+    # todo: mensajes de error controlados
 
-gestion_seguridad() {
-    opcion=$(zenity --list --title="Gestión de Seguridad" \
-    --column="Opción" --column="Acción" \
-    1 "Realizar copiar de seguridad" \
-    2 "Eliminar copia de seguridad" \
-    3 "Listar copia de seguridad" \
-    4 "Enviar informe por correo" \
-    5 "Volver al menú principal" --height=300)
+# Verificar si Zenity está instalado
+if ! command -v zenity &> /dev/null; then
+    echo "Error: Zenity no está instalado. Instálalo con: sudo apt install zenity"
+    exit 1
+fi
+
+# Directorio de backups
+DESTINO="/backup"
+# todo: agrgear que se pueda hacer copias para una carpeta/archivo completo (usuario ingresa ruta)
+ORIGEN="/home/$USER"
+# todo: Ponerlo en un if para crearlo si no existe
+mkdir -p "$DESTINO"
+
+# Función para realizar copia de seguridad con rsync
+realizar_backup() {
+    ARCHIVO="$DESTINO/backup_$(date +%Y%m%d_%H%M%S).tar.gz"
+    tar -czf "$ARCHIVO" "$ORIGEN"
+    
+    if [ $? -eq 0 ]; then
+        zenity --info --text="Copia de seguridad creada: $ARCHIVO"
+    else
+        zenity --error --text="Error al crear la copia de seguridad"
+    fi
 }
+
+# Función para eliminar una copia de seguridad
+eliminar_backup() {
+    ARCHIVO=$(zenity --file-selection --title="Selecciona el archivo de backup a eliminar" --filename="$DESTINO/" --file-filter="*.tar.gz")
+    
+    if [ -n "$ARCHIVO" ]; then
+        rm -f "$ARCHIVO"
+        zenity --info --text="Copia de seguridad eliminada: $ARCHIVO"
+    else
+        zenity --error --text="No se seleccionó ningún archivo"
+    fi
+}
+
+# Función para listar copias de seguridad
+listar_backup() {
+    ARCHIVOS=$(ls $DESTINO/*.tar.gz 2>/dev/null)
+    
+    if [ -z "$ARCHIVOS" ]; then
+        zenity --info --text="No hay copias de seguridad disponibles"
+    else
+        zenity --list --title="Copias de Seguridad" --column="Archivos" $ARCHIVOS
+    fi
+}
+
+# Función para enviar informe de seguridad
+enviar_informe_seguridad() {
+    ARCHIVO=$(zenity --file-selection --title="Selecciona el archivo de backup a enviar" --filename="$DESTINO/" --file-filter="*.tar.gz")
+    
+    if [ -n "$ARCHIVO" ]; then
+        DESTINATARIO=$(zenity --entry --title="Correo Electrónico" --text="Ingresa el correo destinatario")
+        echo "Adjunto copia de seguridad" | mail -s "Backup" -A "$ARCHIVO" "$DESTINATARIO"
+        zenity --info --text="Copia de seguridad enviada a $DESTINATARIO"
+    else
+        zenity --error --text="No se seleccionó ningún archivo"
+    fi
+}
+
+# Función del menú de gestión de seguridad
+    while true; do
+        opcion=$(zenity --list --title="Gestión de Seguridad" \
+        --column="Opción" --column="Acción" \
+        1 "Realizar copia de seguridad" \
+        2 "Eliminar copia de seguridad" \
+        3 "Listar copia de seguridad" \
+        4 "Enviar informe por correo" \
+        5 "Salir" --height=300)
+
+        case "$opcion" in
+            1) realizar_backup ;;
+            2) eliminar_backup ;;
+            3) listar_backup ;;
+            4) enviar_informe_seguridad ;;
+            5) exit 0 ;;  # Salir del script
+            *) zenity --error --text="Opción inválida" ;;
+        esac
+    done
+
+
+#PARA INSTALAR
+#instalar mailx sudo apt install mailutils
