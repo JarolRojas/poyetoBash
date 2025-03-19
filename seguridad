@@ -1,5 +1,4 @@
 #!/bin/bash
-    # todo: mensajes de error controlados
 
 # Verificar si Zenity está instalado
 if ! command -v zenity &> /dev/null; then
@@ -7,18 +6,30 @@ if ! command -v zenity &> /dev/null; then
     exit 1
 fi
 
+# Verificar si mailutils está instalado para envío de correo
+if ! command -v mail &> /dev/null; then
+    zenity --error --text="Error: mailutils no está instalado. Instálalo con: sudo apt install mailutils"
+    exit 1
+fi
+
 # Directorio de backups
 DESTINO="/backup"
-# todo: agrgear que se pueda hacer copias para una carpeta/archivo completo (usuario ingresa ruta)
-ORIGEN="/home/$USER"
-# todo: Ponerlo en un if para crearlo si no existe
-mkdir -p "$DESTINO"
 
-# Función para realizar copia de seguridad con rsync
+# Verificar si el directorio de backup existe; si no, crearlo
+if [ ! -d "$DESTINO" ]; then
+    mkdir -p "$DESTINO" || { zenity --error --text="Error al crear el directorio de backup"; exit 1; }
+fi
+
+# Función para realizar copia de seguridad
 realizar_backup() {
+    ORIGEN=$(zenity --file-selection --title="Selecciona el archivo o carpeta para respaldar" --filename="$HOME/" --directory)
+    if [ -z "$ORIGEN" ]; then
+        zenity --error --text="No se seleccionó ningún archivo o carpeta"
+        return 1
+    fi
+
     ARCHIVO="$DESTINO/backup_$(date +%Y%m%d_%H%M%S).tar.gz"
-    tar -czf "$ARCHIVO" "$ORIGEN"
-    
+    tar -czf "$ARCHIVO" "$ORIGEN" 2>/dev/null
     if [ $? -eq 0 ]; then
         zenity --info --text="Copia de seguridad creada: $ARCHIVO"
     else
@@ -29,19 +40,22 @@ realizar_backup() {
 # Función para eliminar una copia de seguridad
 eliminar_backup() {
     ARCHIVO=$(zenity --file-selection --title="Selecciona el archivo de backup a eliminar" --filename="$DESTINO/" --file-filter="*.tar.gz")
-    
-    if [ -n "$ARCHIVO" ]; then
-        rm -f "$ARCHIVO"
+    if [ -z "$ARCHIVO" ]; then
+        zenity --error --text="No se seleccionó ningún archivo"
+        return 1
+    fi
+
+    rm -f "$ARCHIVO"
+    if [ $? -eq 0 ]; then
         zenity --info --text="Copia de seguridad eliminada: $ARCHIVO"
     else
-        zenity --error --text="No se seleccionó ningún archivo"
+        zenity --error --text="Error al eliminar la copia de seguridad"
     fi
 }
 
 # Función para listar copias de seguridad
 listar_backup() {
-    ARCHIVOS=$(ls $DESTINO/*.tar.gz 2>/dev/null)
-    
+    ARCHIVOS=$(ls "$DESTINO"/*.tar.gz 2>/dev/null)
     if [ -z "$ARCHIVOS" ]; then
         zenity --info --text="No hay copias de seguridad disponibles"
     else
@@ -52,36 +66,105 @@ listar_backup() {
 # Función para enviar informe de seguridad
 enviar_informe_seguridad() {
     ARCHIVO=$(zenity --file-selection --title="Selecciona el archivo de backup a enviar" --filename="$DESTINO/" --file-filter="*.tar.gz")
-    
-    if [ -n "$ARCHIVO" ]; then
-        DESTINATARIO=$(zenity --entry --title="Correo Electrónico" --text="Ingresa el correo destinatario")
-        echo "Adjunto copia de seguridad" | mail -s "Backup" -A "$ARCHIVO" "$DESTINATARIO"
+    if [ -z "$ARCHIVO" ]; then
+        zenity --error --text="No se seleccionó ningún archivo"
+        return 1
+    fi
+
+    DESTINATARIO=$(zenity --entry --title="Correo Electrónico" --text="Ingresa el correo destinatario")
+    if [ -z "$DESTINATARIO" ]; then
+        zenity --error --text="No se ingresó un destinatario"
+        return 1
+    fi
+
+    echo "Adjunto copia de seguridad" | mail -s "Backup" -A "$ARCHIVO" "$DESTINATARIO"
+    if [ $? -eq 0 ]; then
         zenity --info --text="Copia de seguridad enviada a $DESTINATARIO"
     else
-        zenity --error --text="No se seleccionó ningún archivo"
+        zenity --error --text="Error al enviar el correo"
     fi
 }
 
-# Función del menú de gestión de seguridad
-    while true; do
-        opcion=$(zenity --list --title="Gestión de Seguridad" \
+# Función para monitorear discos
+monitor_discos() {
+    df -h | zenity --text-info --title="Estado de Discos" --width=600 --height=400
+}
+
+# Función para administrar particiones (usando fdisk)
+administrar_particiones() {
+    sudo fdisk -l | zenity --text-info --title="Administración de Particiones" --width=600 --height=400
+}
+
+# Función para limpiar archivos temporales
+limpiar_temporales() {
+    sudo rm -rf /tmp/* /var/tmp/* && zenity --info --text="Archivos temporales eliminados con éxito"
+}
+
+# Función para configurar firewall con UFW
+configurar_firewall() {
+    OPCION=$(zenity --list --title="Configurar Firewall" --column="Acción" "Habilitar UFW" "Deshabilitar UFW" "Estado de UFW")
+    case "$OPCION" in
+        "Habilitar UFW") sudo ufw enable && zenity --info --text="Firewall habilitado" ;;
+        "Deshabilitar UFW") sudo ufw disable && zenity --info --text="Firewall deshabilitado" ;;
+        "Estado de UFW") sudo ufw status | zenity --text-info --title="Estado del Firewall" ;;
+        *) zenity --error --text="Opción inválida" ;;
+    esac
+}
+
+# Función para análisis de vulnerabilidades con Lynis
+analizar_vulnerabilidades() {
+    if ! command -v lynis &> /dev/null; then
+        zenity --error --text="Lynis no está instalado. Instálalo con: sudo apt install lynis"
+        return 1
+    fi
+    sudo lynis audit system | tee /tmp/lynis_report.txt
+    zenity --text-info --title="Análisis de Seguridad" --filename=/tmp/lynis_report.txt --width=700 --height=500
+}
+
+# Menú de gestión de seguridad
+while true; do
+    opcion=$(zenity --list --title="Gestión de Seguridad" \
         --column="Opción" --column="Acción" \
-        1 "Realizar copia de seguridad" \
-        2 "Eliminar copia de seguridad" \
-        3 "Listar copia de seguridad" \
-        4 "Enviar informe por correo" \
+        1 "Copias de Seguridad" \
+        2 "Gestión de Almacenamiento" \
+        3 "Configurar Firewall" \
+        4 "Análisis de Vulnerabilidades" \
         5 "Salir" --height=300)
 
-        case "$opcion" in
-            1) realizar_backup ;;
-            2) eliminar_backup ;;
-            3) listar_backup ;;
-            4) enviar_informe_seguridad ;;
-            5) exit 0 ;;  # Salir del script
-            *) zenity --error --text="Opción inválida" ;;
-        esac
-    done
+    case "$opcion" in
+        1) 
+            subopcion=$(zenity --list --title="Copias de Seguridad" \
+                --column="Opción" --column="Acción" \
+                1 "Realizar" \
+                2 "Eliminar" \
+                3 "Listar" \
+                4 "Mandar correo" --height=250)
+            case "$subopcion" in
+                1) realizar_backup ;;
+                2) eliminar_backup ;;
+                3) listar_backup ;;
+                4) enviar_informe_seguridad ;;
+            esac
+        ;;
+        2) 
+            subopcion=$(zenity --list --title="Gestión de Almacenamiento" \
+                --column="Opción" --column="Acción" \
+                1 "Monitor de Discos" \
+                2 "Administración de Particiones" \
+                3 "Limpieza de Archivos Temporales" --height=250)
+            case "$subopcion" in
+                1) monitor_discos ;;
+                2) administrar_particiones ;;
+                3) limpiar_temporales ;;
+            esac
+        ;;
+        3) configurar_firewall ;;
+        4) analizar_vulnerabilidades ;;
+        5) exit 0 ;;
+        *) zenity --error --text="Opción inválida" ;;
+    esac
+done
 
 
-#PARA INSTALAR
-#instalar mailx sudo apt install mailutils
+
+#INSTALAR mailutils zenity ufw lynis
