@@ -1,67 +1,144 @@
 #!/bin/bash
 
-# Verificar si Zenity está instalado
-if ! command -v zenity &> /dev/null; then
-    echo "Error: Zenity no está instalado. Instálalo con: sudo apt install zenity"
-    exit 1
-fi
+# # Verificar si Zenity está instalado
+# if ! command -v zenity &> /dev/null; then
+#     echo "Error: Zenity no está instalado. Instálalo con: sudo apt install zenity"
+#     exit 1
+# fi
 
-# Verificar si mailutils está instalado para envío de correo
-if ! command -v mail &> /dev/null; then
-    zenity --error --text="Error: mailutils no está instalado. Instálalo con: sudo apt install mailutils"
-    exit 1
-fi
+# # Verificar si mailutils está instalado para envío de correo
+# if ! command -v mail &> /dev/null; then
+#     zenity --error --text="Error: mailutils no está instalado. Instálalo con: sudo apt install mailutils"
+#     exit 1
+# fi
 
-# Directorio de backups
-DESTINO="/backup"
+#!/bin/bash
 
-# Verificar si el directorio de backup existe; si no, crearlo
-if [ ! -d "$DESTINO" ]; then
-    mkdir -p "$DESTINO" || { zenity --error --text="Error al crear el directorio de backup"; exit 1; }
-fi
+validar_backup() {
+    # Directorio de backups
+    DESTINO="/backup"
+
+    # Verificar si el directorio de backup existe; si no, crearlo
+    if [ ! -d "$DESTINO" ]; then
+        mkdir -p "$DESTINO" || { zenity --error --text="Error al crear el directorio de backup"; exit 1; }
+        chmod 700 "$DESTINO"  # Cambié 777 a 700 por seguridad
+    fi
+}
 
 # Función para realizar copia de seguridad
 realizar_backup() {
+    validar_backup
     ORIGEN=$(zenity --file-selection --title="Selecciona el archivo o carpeta para respaldar" --filename="$HOME/" --directory)
-    if [ -z "$ORIGEN" ]; then
-        zenity --error --text="No se seleccionó ningún archivo o carpeta"
-        return 1
-    fi
+    
+    # Verificar si se canceló la selección
+    [ -z "$ORIGEN" ] && { zenity --error --text="No se seleccionó ningún archivo o carpeta"; return 1; }
+    
+    # Verificar si el origen existe
+    [ ! -e "$ORIGEN" ] && { zenity --error --text="El archivo o carpeta seleccionado no existe"; return 1; }
 
     ARCHIVO="$DESTINO/backup_$(date +%Y%m%d_%H%M%S).tar.gz"
     tar -czf "$ARCHIVO" "$ORIGEN" 2>/dev/null
+    
     if [ $? -eq 0 ]; then
-        zenity --info --text="Copia de seguridad creada: $ARCHIVO"
+        zenity --info --text="Copia de seguridad creada exitosamente: $ARCHIVO"
     else
         zenity --error --text="Error al crear la copia de seguridad"
+        [ -f "$ARCHIVO" ] && rm -f "$ARCHIVO"  # Elimina archivo corrupto si existe
+        return 1
     fi
 }
 
 # Función para eliminar una copia de seguridad
 eliminar_backup() {
     ARCHIVO=$(zenity --file-selection --title="Selecciona el archivo de backup a eliminar" --filename="$DESTINO/" --file-filter="*.tar.gz")
-    if [ -z "$ARCHIVO" ]; then
-        zenity --error --text="No se seleccionó ningún archivo"
-        return 1
-    fi
+    
+    # Verificar si se canceló la selección
+    [ -z "$ARCHIVO" ] && { zenity --error --text="No se seleccionó ningún archivo"; return 1; }
+    
+    # Verificar si el archivo existe
+    [ ! -f "$ARCHIVO" ] && { zenity --error --text="El archivo seleccionado no existe"; return 1; }
 
     rm -f "$ARCHIVO"
     if [ $? -eq 0 ]; then
-        zenity --info --text="Copia de seguridad eliminada: $ARCHIVO"
+        zenity --info --text="Copia de seguridad eliminada exitosamente: $ARCHIVO"
     else
         zenity --error --text="Error al eliminar la copia de seguridad"
+        return 1
     fi
 }
 
 # Función para listar copias de seguridad
 listar_backup() {
-    ARCHIVOS=$(ls "$DESTINO"/*.tar.gz 2>/dev/null)
-    if [ -z "$ARCHIVOS" ]; then
+    validar_backup  # Asegura que el directorio exista
+    
+    # Usar un array para almacenar los archivos
+    mapfile -t ARCHIVOS < <(ls -1 "$DESTINO"/*.tar.gz 2>/dev/null)
+    
+    if [ ${#ARCHIVOS[@]} -eq 0 ]; then
         zenity --info --text="No hay copias de seguridad disponibles"
     else
-        zenity --list --title="Copias de Seguridad" --column="Archivos" $ARCHIVOS
+        # Convertir rutas absolutas a nombres de archivo para mejor presentación
+        NOMBRES=()
+        for archivo in "${ARCHIVOS[@]}"; do
+            NOMBRES+=("$(basename "$archivo")")
+        done
+        zenity --list --title="Copias de Seguridad" --column="Archivos" "${NOMBRES[@]}"
     fi
 }
+# validar_backup(){
+# # Directorio de backups
+# DESTINO="/backup"
+
+# # Verificar si el directorio de backup existe; si no, crearlo
+# if [ ! -d "$DESTINO" ]; then
+#     mkdir -p "$DESTINO" || { zenity --error --text="Error al crear el directorio de backup"; exit 1; }
+#     chmod 777 "/backup"
+# fi
+# }
+
+# # Función para realizar copia de seguridad
+# realizar_backup() {
+#     validar_backup
+#     ORIGEN=$(zenity --file-selection --title="Selecciona el archivo o carpeta para respaldar" --filename="$HOME/" --directory)
+#     if [ -z "$ORIGEN" ]; then
+#         zenity --error --text="No se seleccionó ningún archivo o carpeta"
+#         return 1
+#     fi
+
+#     ARCHIVO="$DESTINO/backup_$(date +%Y%m%d_%H%M%S).tar.gz"
+#     tar -czf "$ARCHIVO" "$ORIGEN" 2>/dev/null
+#     if [ $? -eq 0 ]; then
+#         zenity --info --text="Copia de seguridad creada: $ARCHIVO"
+#     else
+#         zenity --error --text="Error al crear la copia de seguridad"
+#     fi
+# }
+
+# # Función para eliminar una copia de seguridad
+# eliminar_backup() {
+#     ARCHIVO=$(zenity --file-selection --title="Selecciona el archivo de backup a eliminar" --filename="/$DESTINO/" --file-filter="*.tar.gz")
+#     if [ -z "$ARCHIVO" ]; then
+#         zenity --error --text="No se seleccionó ningún archivo"
+#         return 1
+#     fi
+
+#     rm -f "$ARCHIVO"
+#     if [ $? -eq 0 ]; then
+#         zenity --info --text="Copia de seguridad eliminada: $ARCHIVO"
+#     else
+#         zenity --error --text="Error al eliminar la copia de seguridad"
+#     fi
+# }
+
+# # Función para listar copias de seguridad
+# listar_backup() {
+#     ARCHIVOS=$(ls "$DESTINO"/*.tar.gz 2>/dev/null)
+#     if [ -z "$ARCHIVOS" ]; then
+#         zenity --info --text="No hay copias de seguridad disponibles"
+#     else
+#         zenity --list --title="Copias de Seguridad" --column="Archivos" $ARCHIVOS
+#     fi
+# }
 
 # Función para enviar informe de seguridad
 enviar_informe_seguridad() {
