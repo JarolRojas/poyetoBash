@@ -1,166 +1,156 @@
 #!/bin/bash
-#Este es un script para gestionar los usuarios del sistema
+# Script de gestión de usuarios con Zenity y corrección de CONTRASEÑA
 
-
-# Verificar si Zenity está instalado
-if ! command -v zenity &> /dev/null; then
-    echo "Error: Zenity no está instalado. Instálalo con: sudo apt install zenity"
+# Verificar si se ejecuta como root
+if [ "$EUID" -ne 0 ]; then
+    zenity --error --text="Este script debe ejecutarse con sudo"
     exit 1
 fi
 
-# Función para crear un usuario
+# Verificar si Zenity está instalado
+command -v zenity >/dev/null 2>&1 || { echo "Error: Zenity no está instalado. Instálalo con: sudo apt install zenity"; exit 1; }
+
+# Función para validar entrada
+validar_entrada() {
+    if [[ "$1" =~ [^a-zA-Z0-9_-] ]]; then
+        zenity --error --text="Solo se permiten letras, números, guiones y guiones bajos en '$1'"
+        return 1
+    fi
+    return 0
+}
+
 crear_usuario() {
     USUARIO=$(zenity --entry --title="Crear Usuario" --text="Ingrese el nombre de usuario:")
-    if [ -z "$USUARIO" ]; then
-        zenity --error --text="No se ingresó un usuario"
+    [ -z "$USUARIO" ] && { zenity --error --text="El nombre de usuario no puede estar vacío"; return 1; }
+    validar_entrada "$USUARIO" || return 1
+    if id "$USUARIO" >/dev/null 2>&1; then
+        zenity --error --text="El usuario '$USUARIO' ya existe"
         return 1
     fi
-
-    CONTRASEÑA=$(zenity --password --title="Contraseña para $USUARIO")
-    if [ -z "$CONTRASEÑA" ]; then
-        zenity --error --text="No se ingresó una contraseña"
+    
+    CONTRASENA=$(zenity --password --title="Contraseña para $USUARIO")
+    [ -z "$CONTRASENA" ] && { zenity --error --text="La contraseña no puede estar vacía"; return 1; }
+    
+    if ! useradd -m -s /bin/bash "$USUARIO"; then
+        zenity --error --text="No se pudo crear el usuario '$USUARIO'. Verifica permisos o espacio."
         return 1
     fi
-
-    sudo useradd -m "$USUARIO" && echo "$USUARIO:$CONTRASEÑA" | sudo chpasswd
-    if [ $? -eq 0 ]; then
-        zenity --info --text="Usuario $USUARIO creado con éxito"
-    else
-        zenity --error --text="Error al crear el usuario"
+    if ! echo "$USUARIO:$CONTRASENA" | chpasswd; then
+        zenity --error --text="No se pudo establecer la contraseña para '$USUARIO'"
+        userdel "$USUARIO"  # Limpieza en caso de fallo
+        return 1
     fi
+    zenity --info --text="Usuario '$USUARIO' creado con éxito"
 }
 
-# Función para eliminar un usuario
 eliminar_usuario() {
-    USUARIO=$(zenity --entry --title="Eliminar Usuario" --text="Ingrese el nombre de usuario a eliminar:")
-    if [ -z "$USUARIO" ]; then
-        zenity --error --text="No se ingresó un usuario"
+    USUARIO=$(zenity --entry --title="Eliminar Usuario" --text="Ingrese el nombre de usuario:")
+    [ -z "$USUARIO" ] && { zenity --error --text="El nombre de usuario no puede estar vacío"; return 1; }
+    validar_entrada "$USUARIO" || return 1
+    if ! id "$USUARIO" >/dev/null 2>&1; then
+        zenity --error --text="El usuario '$USUARIO' no existe"
         return 1
     fi
-
-    zenity --question --text="¿Está seguro de que desea eliminar al usuario $USUARIO?" || return 1
-
-    sudo userdel -r "$USUARIO"
-    if [ $? -eq 0 ]; then
-        zenity --info --text="Usuario $USUARIO eliminado con éxito"
-    else
-        zenity --error --text="Error al eliminar el usuario"
+    
+    zenity --question --text="¿Eliminar a '$USUARIO'?" || { zenity --info --text="Eliminación cancelada"; return 1; }
+    if ! userdel -r "$USUARIO" 2>/dev/null; then
+        zenity --error --text="No se pudo eliminar '$USUARIO'. Verifica permisos o archivos en uso."
+        return 1
     fi
+    zenity --info --text="Usuario '$USUARIO' eliminado con éxito"
 }
 
-# Función para restablecer la contraseña de un usuario
 restablecer_contraseña() {
     USUARIO=$(zenity --entry --title="Restablecer Contraseña" --text="Ingrese el nombre de usuario:")
-    if [ -z "$USUARIO" ]; then
-        zenity --error --text="No se ingresó un usuario"
+    [ -z "$USUARIO" ] && { zenity --error --text="El nombre de usuario no puede estar vacío"; return 1; }
+    validar_entrada "$USUARIO" || return 1
+    if ! id "$USUARIO" >/dev/null 2>&1; then
+        zenity --error --text="El usuario '$USUARIO' no existe"
         return 1
     fi
-
-    CONTRASEÑA=$(zenity --password --title="Nueva contraseña para $USUARIO")
-    if [ -z "$CONTRASEÑA" ]; then
-        zenity --error --text="No se ingresó una nueva contraseña"
-        return 1
-    fi
-
-    echo "$USUARIO:$CONTRASEÑA" | sudo chpasswd
-    if [ $? -eq 0 ]; then
-        zenity --info --text="Contraseña de $USUARIO restablecida con éxito"
-    else
-        zenity --error --text="Error al restablecer la contraseña"
-    fi
-}
-
-# Función para listar usuarios activos
-listar_usuarios() {
-    USUARIOS=$(cut -d: -f1 /etc/passwd | zenity --list --title="Usuarios del Sistema" --column="Usuarios" --width=300 --height=400)
     
-    if [ -z "$USUARIOS" ]; then
-        zenity --info --text="No hay usuarios en el sistema"
+    CONTRASENA=$(zenity --password --title="Nueva contraseña para $USUARIO")
+    [ -z "$CONTRASENA" ] && { zenity --error --text="La contraseña no puede estar vacía"; return 1; }
+    
+    if ! echo "$USUARIO:$CONTRASENA" | chpasswd; then
+        zenity --error --text="No se pudo restablecer la contraseña para '$USUARIO'"
+        return 1
+    fi
+    zenity --info --text="Contraseña de '$USUARIO' restablecida con éxito"
+}
+
+listar_usuarios() {
+    if ! cut -d: -f1 /etc/passwd | sort | zenity --list --title="Usuarios del Sistema" --column="Usuarios" --width=300 --height=400; then
+        zenity --error --text="No se pudo listar los usuarios. Verifica permisos o /etc/passwd."
+        return 1
     fi
 }
 
-# Función para gestionar permisos (agregar/quitar usuario de grupo)
 gestionar_permisos() {
     USUARIO=$(zenity --entry --title="Gestionar Permisos" --text="Ingrese el nombre de usuario:")
-    if [ -z "$USUARIO" ]; then
-        zenity --error --text="No se ingresó un usuario"
+    [ -z "$USUARIO" ] && { zenity --error --text="El nombre de usuario no puede estar vacío"; return 1; }
+    validar_entrada "$USUARIO" || return 1
+    if ! id "$USUARIO" >/dev/null 2>&1; then
+        zenity --error --text="El usuario '$USUARIO' no existe"
         return 1
     fi
-
-    GRUPO=$(zenity --entry --title="Gestionar Permisos" --text="Ingrese el nombre del grupo:")
-    if [ -z "$GRUPO" ]; then
-        zenity --error --text="No se ingresó un grupo"
-        return 1
-    fi
-
-    OPCION=$(zenity --list --title="Seleccionar Acción" --column="Acción" "Añadir al grupo" "Quitar del grupo")
     
-    if [ "$OPCION" == "Añadir al grupo" ]; then
-        sudo usermod -aG "$GRUPO" "$USUARIO"
-        if [ $? -eq 0 ]; then
-            zenity --info --text="Usuario $USUARIO agregado al grupo $GRUPO"
-        else
-            zenity --error --text="Error al agregar el usuario al grupo"
-        fi
-    elif [ "$OPCION" == "Quitar del grupo" ]; then
-        sudo deluser "$USUARIO" "$GRUPO"
-        if [ $? -eq 0 ]; then
-            zenity --info --text="Usuario $USUARIO eliminado del grupo $GRUPO"
-        else
-            zenity --error --text="Error al eliminar el usuario del grupo"
-        fi
-    else
-        zenity --error --text="Acción cancelada"
-    fi
+    GRUPO=$(cut -d: -f1 /etc/group | sort | zenity --list --title="Seleccione un grupo" --column="Grupos" --width=300 --height=400)
+    [ -z "$GRUPO" ] && { zenity --error --text="No se seleccionó ningún grupo"; return 1; }
+    
+    OPCION=$(zenity --list --title="Seleccionar Acción" --column="Acción" "Añadir al grupo" "Quitar del grupo")
+    case "$OPCION" in
+        "Añadir al grupo")
+            if ! usermod -aG "$GRUPO" "$USUARIO"; then
+                zenity --error --text="No se pudo añadir '$USUARIO' al grupo '$GRUPO'"
+                return 1
+            fi
+            zenity --info --text="'$USUARIO' añadido al grupo '$GRUPO'"
+            ;;
+        "Quitar del grupo")
+            if ! deluser "$USUARIO" "$GRUPO"; then
+                zenity --error --text="No se pudo quitar '$USUARIO' del grupo '$GRUPO'"
+                return 1
+            fi
+            zenity --info --text="'$USUARIO' quitado del grupo '$GRUPO'"
+            ;;
+        *) zenity --error --text="Acción cancelada"; return 1;;
+    esac
 }
 
-# Función para enviar correo con información del usuario
 enviar_info_usuario() {
     USUARIO=$(zenity --entry --title="Enviar Información" --text="Ingrese el nombre de usuario:")
-    if [ -z "$USUARIO" ]; then
-        zenity --error --text="No se ingresó un usuario"
+    [ -z "$USUARIO" ] && { zenity --error --text="El nombre de usuario no puede estar vacío"; return 1; }
+    validar_entrada "$USUARIO" || return 1
+    if ! id "$USUARIO" >/dev/null 2>&1; then
+        zenity --error --text="El usuario '$USUARIO' no existe"
         return 1
     fi
-
-    DESTINATARIO=$(zenity --entry --title="Correo Electrónico" --text="Ingrese el correo destinatario:")
-    if [ -z "$DESTINATARIO" ]; then
-        zenity --error --text="No se ingresó un destinatario"
-        return 1
-    fi
-
-    INFO=$(getent passwd "$USUARIO")
-    echo "Información del usuario $USUARIO: $INFO" | mail -s "Información de usuario" "$DESTINATARIO"
     
-    if [ $? -eq 0 ]; then
-        zenity --info --text="Información de $USUARIO enviada a $DESTINATARIO"
-    else
-        zenity --error --text="Error al enviar el correo"
+    DESTINATARIO=$(zenity --entry --title="Correo Electrónico" --text="Ingrese el correo destinatario:")
+    [[ ! "$DESTINATARIO" =~ ^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$ ]] && { zenity --error --text="Formato de correo inválido"; return 1; }
+    
+    INFO=$(getent passwd "$USUARIO")
+    if ! echo "Info de '$USUARIO': $INFO" | mail -s "Información de usuario" "$DESTINATARIO"; then
+        zenity --error --text="No se pudo enviar el correo. Verifica mailutils o la configuración."
+        return 1
     fi
+    zenity --info --text="Correo enviado a '$DESTINATARIO' con info de '$USUARIO'"
 }
 
-# Menú de gestión de usuarios
+# Menú principal
 while true; do
-    opcion=$(zenity --list --title="Gestión de Usuarios" \
-        --column="Opción" --column="Acción" \
-        1 "Crear Usuario" \
-        2 "Eliminar Usuario" \
-        3 "Restablecer Contraseña" \
-        4 "Listar Usuarios" \
-        5 "Gestionar Permisos" \
-        6 "Enviar Info por Correo" \
-        7 "Salir" --height=300)
-
+    opcion=$(zenity --list --title="Gestión de Usuarios" --column="Opción" --column="Acción" \
+        1 "Crear Usuario" 2 "Eliminar Usuario" 3 "Restablecer Contraseña" \
+        4 "Listar Usuarios" 5 "Gestionar Permisos" 6 "Enviar Info por Correo" 7 "Salir" --height=300)
     case "$opcion" in
-        1) crear_usuario ;;
-        2) eliminar_usuario ;;
-        3) restablecer_contraseña ;;
-        4) listar_usuarios ;;
-        5) gestionar_permisos ;;
-        6) enviar_info_usuario ;;
-        7) exit 0 ;;
-        *) zenity --error --text="Opción inválida" ;;
+        1) crear_usuario;;
+        2) eliminar_usuario;;
+        3) restablecer_contraseña;;
+        4) listar_usuarios;;
+        5) gestionar_permisos;;
+        6) enviar_info_usuario;;
+        7) exit 0;;
+        *) zenity --error --text="Opción inválida";;
     esac
 done
-
-# PARA INSTALAR DEPENDENCIAS:
-# sudo apt install mailutils zenity
