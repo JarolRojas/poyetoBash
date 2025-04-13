@@ -138,6 +138,7 @@ enviar_info_usuario() {
     zenity --info --text="Correo enviado a '$DESTINATARIO' con info de '$USUARIO'"
 }
 
+
 # Menú principal
 while true; do
     opcion=$(zenity --list --title="Gestión de Usuarios" --column="Opción" --column="Acción" \

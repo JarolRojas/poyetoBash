@@ -127,6 +127,12 @@ gestionar_permisos() {
     esac
 }
 
+validar_entrada() {
+    local entrada=$1
+    [[ "$entrada" =~ ^[a-zA-Z0-9._-]+$ ]] || { echo "Error: Entrada inválida"; return 1; }
+    return 0
+}
+
 enviar_info_usuario() {
     read -p "Ingrese el nombre de usuario: " USUARIO
     [ -z "$USUARIO" ] && { echo "Error: El nombre de usuario no puede estar vacío"; return 1; }
@@ -140,11 +146,16 @@ enviar_info_usuario() {
     [[ ! "$DESTINATARIO" =~ ^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$ ]] && { echo "Error: Formato de correo inválido"; return 1; }
     
     INFO=$(getent passwd "$USUARIO")
-    if ! echo "Info de '$USUARIO': $INFO" | mail -s "Información de usuario" "$DESTINATARIO"; then
-        echo "Error: No se pudo enviar el correo. Verifica mailutils o la configuración del servidor de correo."
+    
+    # Llamar al script Python para enviar el correo
+    python3 enviar_correo.py "$USUARIO" "$DESTINATARIO" "$INFO"
+    
+    if [ $? -eq 0 ]; then
+        echo "Correo enviado a '$DESTINATARIO' con la información de '$USUARIO'"
+    else
+        echo "Error: No se pudo enviar el correo."
         return 1
     fi
-    echo "Correo enviado a '$DESTINATARIO' con la información de '$USUARIO'"
 }
 
 # Menú principal
