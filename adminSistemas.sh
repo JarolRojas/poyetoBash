@@ -138,6 +138,28 @@ gestion_logs() {
     fi
 }
 
+mandar_correo() {
+    archivo_para_enviar=$(zenity --file-selection --title="Selecciona el archivo para enviar por correo")
+    
+    if [[ -n "$archivo_para_enviar" ]]; then
+        destinatario=$(zenity --entry --title="Enviar Correo" --text="Ingresa el correo del destinatario:")
+        
+        if [[ -n "$destinatario" ]]; then
+            echo "Enviando $archivo_para_enviar a $destinatario..."
+            python3 sendmail.py "$archivo_para_enviar" "$destinatario"
+            if [[ $? -eq 0 ]]; then
+                zenity --info --title="Correo Enviado" --text="El correo fue enviado correctamente a $destinatario"
+            else
+                zenity --error --title="Error" --text="Ocurrió un error al enviar el correo."
+            fi
+        else
+            zenity --warning --text="No se ingresó un correo."
+        fi
+    else
+        zenity --warning --text="No se seleccionó ningún archivo."
+    fi
+}
+
 # Menú principal
 while true; do
     opcion=$(zenity --list --title "Administración del Sistema" --text "Selecciona una opción:" --column "Opción" \
