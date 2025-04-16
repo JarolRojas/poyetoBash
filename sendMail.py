@@ -1,39 +1,50 @@
+import sys
 import smtplib
 from email.mime.text import MIMEText
-import sys
+from email.mime.multipart import MIMEMultipart
+from email.mime.application import MIMEApplication
+import os
 
-def enviar_correo(usuario, destinatario, info):
-    try:
-        # Configuración del servidor SMTP
-        mail_server = smtplib.SMTP('smtp.gmail.com', 587)
-        mail_server.starttls()
-        mail_server.ehlo()
-        mail_server.login('maitesolam@gmail.com', 'cyxs kvkw fmvu lhrf')  # Usa una contraseña de aplicación segura
+# Validación de argumentos
+if len(sys.argv) != 3:
+    print("Uso: python3 sendmail.py <archivo_a_enviar> <correo_destinatario>")
+    sys.exit(1)
 
-        # Crear el mensaje
-        mensaje = MIMEText(f"Información de '{usuario}': {info}")
-        mensaje['From'] = 'maitesolam@gmail.com'
-        mensaje['To'] = destinatario
-        mensaje['Subject'] = f'Información de usuario: {usuario}'
+archivo = sys.argv[1]
+destinatario = sys.argv[2]
 
-        # Enviar el correo
-        mail_server.sendmail('maitesolam@gmail.com', destinatario, mensaje.as_string())
-        mail_server.quit()
-        return True
-    except Exception as e:
-        print(f"Error al enviar el correo: {e}")
-        return False
+# Configura tus credenciales de Gmail
+remitente = "tretoleondaniel@gmail.com"
+contrasena = "vion xcja gjqh saav"  # App password, no la contraseña real de Gmail
 
-if __name__ == "__main__":
-    if len(sys.argv) != 4:
-        print("Uso: python3 enviar_correo.py <usuario> <destinatario> <info>")
-        sys.exit(1)
-    
-    usuario = sys.argv[1]
-    destinatario = sys.argv[2]
-    info = sys.argv[3]
-    
-    if enviar_correo(usuario, destinatario, info):
-        sys.exit(0)
-    else:
-        sys.exit(1)
+# Crear el mensaje
+mensaje = MIMEMultipart()
+mensaje['From'] = remitente
+mensaje['To'] = destinatario
+mensaje['Subject'] = "Archivo solicitado desde script de Linux"
+
+# Cuerpo del mensaje
+cuerpo = "Hola,\n\nAdjunto encontrarás el archivo solicitado.\n\nSaludos."
+mensaje.attach(MIMEText(cuerpo, 'plain'))
+
+# Adjuntar el archivo
+try:
+    with open(archivo, 'rb') as f:
+        adjunto = MIMEApplication(f.read(), Name=os.path.basename(archivo))
+        adjunto['Content-Disposition'] = f'attachment; filename="{os.path.basename(archivo)}"'
+        mensaje.attach(adjunto)
+except FileNotFoundError:
+    print(f"Error: El archivo {archivo} no se encontró.")
+    sys.exit(1)
+
+# Enviar el correo
+try:
+    servidor = smtplib.SMTP('smtp.gmail.com', 587)
+    servidor.starttls()
+    servidor.login(remitente, contrasena)
+    servidor.send_message(mensaje)
+    servidor.quit()
+    print(f"Correo enviado exitosamente a {destinatario}")
+except Exception as e:
+    print(f"Error al enviar el correo: {e}")
+    sys.exit(1)
