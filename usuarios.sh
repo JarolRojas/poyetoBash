@@ -31,7 +31,7 @@ validar_entrada() {
 
 crear_usuario() {
     # Mostrar usuarios existentes
-    USUARIOS_EXISTENTES=$(cut -d: -f1 /etc/passwd | sort | zenity --list --title="Usuarios Existentes" --column="Usuarios" --width=300 --height=400 --text="Usuarios existentes (solo información):")
+    USUARIOS_EXISTENTES=$(cut -d: -f1 /etc/passwd | sort | zenity --list --title="Usuarios Existentes" --column="Usuarios" --width=300 --height=400 --text="Usuarios existentes (solo información):" 2>/dev/null )
     USUARIO=$(zenity --entry --title="Crear Usuario" --text="Ingrese el nombre de usuario (nuevo, no debe existir en la lista):")
     [ -z "$USUARIO" ] && { zenity --error --text="El nombre de usuario no puede estar vacío"; return 1; }
     validar_entrada "$USUARIO" || return 1
@@ -57,7 +57,7 @@ crear_usuario() {
 }
 
 eliminar_usuario() {
-    USUARIO=$(cut -d: -f1 /etc/passwd | sort | zenity --list --title="Eliminar Usuario" --column="Usuarios" --width=300 --height=400 --text="Seleccione el usuario a eliminar:")
+    USUARIO=$(cut -d: -f1 /etc/passwd | sort | zenity --list --title="Eliminar Usuario" --column="Usuarios" --width=300 --height=400 --text="Seleccione el usuario a eliminar:" 2>/dev/null )
     [ -z "$USUARIO" ] && { zenity --error --text="No se seleccionó ningún usuario"; return 1; }
     if ! id "$USUARIO" >/dev/null 2>&1; then
         zenity --error --text="El usuario '$USUARIO' no existe"

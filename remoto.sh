@@ -1,92 +1,170 @@
 #!/bin/bash
-#Script para controlar el acceso remoto a un servidor Linux
-#Verifica si el script se ejecuta como root
+# Script para controlar el acceso remoto a SSH en Ubuntu (versión Zenity)
+
+# Verificar si se ejecuta como root
 if [ "$EUID" -ne 0 ]; then
-    echo "Este script debe ejecutarse como root"
+    zenity --error --text="Este script debe ejecutarse como root"
     exit 1
 fi
-#Verifica si Zenity está instalado
-if ! command -v zenity &> /dev/null; then
-    echo "Zenity no está instalado. Instalalo con: sudo apt install zenity"
-    exit 1
-fi
-#Función para mostrar el menú de opciones
-mostrar_menu() {
-    zenity --list --title="Control de Acceso Remoto" --column="Opciones" \
-    "Habilitar SSH" \
-    "Deshabilitar SSH" \
-    "Ver estado de SSH" \
-    "Configurar Firewall" \
-    "Salir"
+
+# Verificar si Zenity está instalado
+command -v zenity >/dev/null 2>&1 || { echo "Zenity no está instalado. Instálalo con: sudo apt install zenity"; exit 1; }
+
+# Archivo de log
+LOG_FILE="/var/log/ssh_management.log"
+
+# Crear archivo de log si no existe
+touch "$LOG_FILE" || { zenity --error --text="No se pudo crear el archivo de log '$LOG_FILE'. Verifica permisos."; exit 1; }
+chmod 600 "$LOG_FILE"
+
+# Función para registrar acciones en el log
+log_action() {
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" >> "$LOG_FILE"
 }
-#Función para habilitar el servicio SSH 
-habilitar_ssh() {
-    if systemctl is-active --quiet ssh; then
-        zenity --info --text="El servicio SSH ya está habilitado."
-    else
-        systemctl start ssh
-        systemctl enable ssh
-        zenity --info --text="El servicio SSH ha sido habilitado."
+
+# Verificar e instalar openssh-server
+verificar_ssh() {
+    if ! dpkg -l | grep -q openssh-server; then
+        zenity --question --text="El paquete openssh-server no está instalado. ¿Deseas instalarlo ahora?" --ok-label="Sí" --cancel-label="No"
+        if [[ $? -eq 0 ]]; then
+            apt update
+            apt install -y openssh-server || { zenity --error --text="No se pudo instalar openssh-server."; exit 1; }
+            log_action "Instalado openssh-server"
+        else
+            zenity --error --text="No se puede continuar sin openssh-server. Saliendo."
+            exit 1
+        fi
     fi
 }
-#Función para deshabilitar el servicio SSH
+
+# Determinar el nombre del servicio (ssh o sshd)
+determinar_servicio() {
+    if systemctl list-units --full -all | grep -q "ssh.service"; then
+        SERVICIO="ssh"
+    elif systemctl list-units --full -all | grep -q "sshd.service"; then
+        SERVICIO="sshd"
+    else
+        zenity --error --text="No se encontró el servicio SSH (ni ssh ni sshd). Verifica la instalación."
+        log_action "Error: Servicio SSH no encontrado"
+        exit 1
+    fi
+}
+
+# Configurar AllowGroups en sshd_config
+configurar_ssh() {
+    if ! grep -q "AllowGroups sshusers" /etc/ssh/sshd_config; then
+        echo "AllowGroups sshusers" >> /etc/ssh/sshd_config
+        groupadd -f sshusers
+        systemctl restart "$SERVICIO" 2>/dev/null || { zenity --error --text="Error al reiniciar el servicio SSH."; exit 1; }
+        log_action "Configurado AllowGroups sshusers en sshd_config y reiniciado SSH"
+    fi
+}
+
+# Función para habilitar el servicio SSH
+habilitar_ssh() {
+    if systemctl is-active --quiet "$SERVICIO"; then
+        zenity --info --text="El servicio SSH ya está habilitado."
+    else
+        systemctl start "$SERVICIO" 2>/dev/null || { zenity --error --text="No se pudo iniciar el servicio SSH."; return 1; }
+        systemctl enable "$SERVICIO" 2>/dev/null || { zenity --error --text="No se pudo habilitar el servicio SSH."; return 1; }
+        zenity --info --text="El servicio SSH ha sido habilitado."
+        log_action "SSH habilitado"
+    fi
+}
+
+# Función para deshabilitar el servicio SSH
 deshabilitar_ssh() {
-    if systemctl is-active --quiet ssh; then
-        systemctl stop ssh
-        systemctl disable ssh
+    if systemctl is-active --quiet "$SERVICIO"; then
+        systemctl stop "$SERVICIO" 2>/dev/null || { zenity --error --text="No se pudo detener el servicio SSH."; return 1; }
+        systemctl disable "$SERVICIO" 2>/dev/null || { zenity --error --text="No se pudo deshabilitar el servicio SSH."; return 1; }
         zenity --info --text="El servicio SSH ha sido deshabilitado."
+        log_action "SSH deshabilitado"
     else
         zenity --info --text="El servicio SSH ya está deshabilitado."
     fi
 }
-#Función para ver el estado del servicio SSH
+
+# Función para ver el estado del servicio SSH
 ver_estado_ssh() {
-    if systemctl is-active --quiet ssh; then
+    if systemctl is-active --quiet "$SERVICIO"; then
         zenity --info --text="El servicio SSH está activo."
     else
         zenity --info --text="El servicio SSH está inactivo."
     fi
+    log_action "Consultado estado de SSH"
 }
-#Función para configurar el firewall
-configurar_firewall() {
-    if ! command -v ufw &> /dev/null; then
-        zenity --error --text="UFW no está instalado. Instalalo con: sudo apt install ufw"
-        return
-    fi
-    if zenity --question --text="¿Deseas habilitar el firewall?" --ok-label="Sí" --cancel-label="No"; then
-        ufw enable
-        zenity --info --text="El firewall ha sido habilitado."
-    else
-        ufw disable
-        zenity --info --text="El firewall ha sido deshabilitado."
-    fi
-}
-#Función principal
-main() {
-    while true; do
-        OPCION=$(mostrar_menu)
-        case $OPCION in
-            "Habilitar SSH")
-                habilitar_ssh
-                ;;
-            "Deshabilitar SSH")
-                deshabilitar_ssh
-                ;;
-            "Ver estado de SSH")
-                ver_estado_ssh
-                ;;
-            "Configurar Firewall")
-                configurar_firewall
-                ;;
-            "Salir")
-                exit 0
-                ;;
-            *)
-                zenity --error --text="Opción no válida."
-                ;;
-        esac
-    done
-}
-#Llamada a la función principal
-main
 
+# Función para gestionar usuarios autorizados
+gestionar_usuarios() {
+    OPCION=$(zenity --list --title="Gestión de Usuarios para SSH" --column="Acción" \
+        "Añadir usuario" "Eliminar usuario" "Listar usuarios" "Cancelar")
+    case "$OPCION" in
+        "Añadir usuario")
+            USUARIO=$(zenity --entry --title="Añadir Usuario" --text="Ingresa el nombre del usuario:")
+            if [[ -z "$USUARIO" ]]; then
+                zenity --error --text="Nombre de usuario vacío"
+                return
+            fi
+            if ! id "$USUARIO" >/dev/null 2>&1; then
+                zenity --error --text="El usuario '$USUARIO' no existe"
+                return
+            fi
+            usermod -aG sshusers "$USUARIO"
+            systemctl restart "$SERVICIO" 2>/dev/null || { zenity --error --text="Error al reiniciar el servicio SSH."; return 1; }
+            zenity --info --text="Usuario '$USUARIO' añadido al grupo sshusers."
+            log_action "Usuario $USUARIO añadido a sshusers"
+            ;;
+        "Eliminar usuario")
+            mapfile -t USUARIOS < <(getent group sshusers | cut -d: -f4 | tr ',' '\n')
+            if [ ${#USUARIOS[@]} -eq 0 ]; then
+                zenity --error --text="No hay usuarios en el grupo sshusers."
+                return
+            fi
+            USUARIO=$(zenity --list --title="Eliminar Usuario" --column="Usuarios" "${USUARIOS[@]}")
+            if [[ -z "$USUARIO" ]]; then
+                zenity --error --text="No se seleccionó ningún usuario"
+                return
+            fi
+            gpasswd -d "$USUARIO" sshusers
+            systemctl restart "$SERVICIO" 2>/dev/null || { zenity --error --text="Error al reiniciar el servicio SSH."; return 1; }
+            zenity --info --text="Usuario '$USUARIO' eliminado del grupo sshusers."
+            log_action "Usuario $USUARIO eliminado de sshusers"
+            ;;
+        "Listar usuarios")
+            mapfile -t USUARIOS < <(getent group sshusers | cut -d: -f4 | tr ',' '\n')
+            if [ ${#USUARIOS[@]} -eq 0 ]; then
+                zenity --info --text="No hay usuarios en el grupo sshusers."
+            else
+                zenity --list --title="Usuarios Autorizados para SSH" --column="Usuarios" "${USUARIOS[@]}" --width=400 --height=300
+            fi
+            log_action "Listados usuarios de sshusers"
+            ;;
+        "Cancelar")
+            return
+            ;;
+        *) zenity --error --text="Opción cancelada";;
+    esac
+}
+
+# Verificar e instalar SSH
+verificar_ssh
+determinar_servicio
+configurar_ssh
+
+# Menú principal
+while true; do
+    OPCION=$(zenity --list --title="Control de Acceso Remoto a SSH" --column="Opciones" \
+        "Habilitar SSH" \
+        "Deshabilitar SSH" \
+        "Ver estado de SSH" \
+        "Gestionar usuarios" \
+        "Salir")
+    case "$OPCION" in
+        "Habilitar SSH") habilitar_ssh;;
+        "Deshabilitar SSH") deshabilitar_ssh;;
+        "Ver estado de SSH") ver_estado_ssh;;
+        "Gestionar usuarios") gestionar_usuarios;;
+        "Salir") exit 0;;
+        *) zenity --error --text="Opción no válida.";;
+    esac
+done

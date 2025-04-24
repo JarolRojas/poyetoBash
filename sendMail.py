@@ -14,8 +14,8 @@ archivo = sys.argv[1]
 destinatario = sys.argv[2]
 
 # Configura tus credenciales de Gmail
-remitente = "tretoleondaniel@gmail.com"
-contrasena = "vion xcja gjqh saav"  # App password, no la contraseña real de Gmail
+remitente = "maipruebasclasecuatrovientos@gmail.com"
+contrasena = "ekhp vtum ansx xrik"  # App password, no la contraseña real de Gmail
 
 # Crear el mensaje
 mensaje = MIMEMultipart()
