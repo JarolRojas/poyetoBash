@@ -37,25 +37,33 @@ validar_backup() {
 
 realizar_backup() {
     validar_backup
-    ORIGEN=$(zenity --file-selection --title="Selecciona archivo o carpeta a respaldar" --filename="$HOME/")
-    [ -z "$ORIGEN" ] && { zenity --error --text="No se seleccionó ningún archivo o carpeta"; return 1; }
+    # Permitir selección de archivos o carpetas
+    ORIGEN=$(zenity --file-selection --title="Selecciona archivo o carpeta a respaldar" --filename="$HOME/" --file-filter="All Files | *.*" --directory)
+    [ -z "$ORIGEN" ] && { zenity --info --text="Operación cancelada: No se seleccionó ningún archivo o carpeta"; return 1; }
     [ ! -e "$ORIGEN" ] && { zenity --error --text="'$ORIGEN' no existe"; return 1; }
     
-    # Mostrar listado de contenido
-    mapfile -t CONTENIDO < <(ls -1 "$ORIGEN" 2>/dev/null)
-    if [ ${#CONTENIDO[@]} -eq 0 ]; then
-        zenity --warning --text="La carpeta '$ORIGEN' está vacía o es un archivo"
+    # Mostrar contenido del elemento seleccionado
+    if [ -d "$ORIGEN" ]; then
+        mapfile -t CONTENIDO < <(ls -1 "$ORIGEN" 2>/dev/null)
+        if [ ${#CONTENIDO[@]} -eq 0 ]; then
+            zenity --warning --text="La carpeta '$ORIGEN' está vacía"
+        else
+            LISTA=()
+            for item in "${CONTENIDO[@]}"; do
+                LISTA+=("$item")
+            done
+            zenity --list --title="Contenido de $ORIGEN" --column="Archivos/Carpetas" "${LISTA[@]}" --width=600 --height=400
+        fi
     else
-        LISTA=()
-        for item in "${CONTENIDO[@]}"; do
-            LISTA+=("$item")
-        done
-        zenity --list --title="Contenido de $ORIGEN" --column="Archivos/Carpetas" "${LISTA[@]}" --width=600 --height=400
+        zenity --info --text="Seleccionaste el archivo: $(basename "$ORIGEN")"
     fi
+    
+    # Confirmar respaldo
     zenity --question --text="¿Confirmas respaldar '$ORIGEN'?" || { zenity --info --text="Operación cancelada"; return 1; }
     
+    # Crear backup
     ARCHIVO="$DESTINO/backup_$(date +%Y%m%d_%H%M%S).tar.gz"
-    if ! tar -czf "$ARCHIVO" "$ORIGEN" 2>/dev/null; then
+    if ! tar -czf "$ARCHIVO" -C "$(dirname "$ORIGEN")" "$(basename "$ORIGEN")" 2>/dev/null; then
         zenity --error --text="Fallo al crear la copia en '$ARCHIVO'"
         [ -f "$ARCHIVO" ] && rm -f "$ARCHIVO"
         log_action "Error al crear backup: $ARCHIVO"
