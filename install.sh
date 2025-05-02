@@ -56,7 +56,7 @@ pip install secure-smtplib
 
 # Configurar permisos para los scripts
 echo -e "${AMARILLO}Configurando permisos para los scripts...${SC}"
-chmod +x *.sh
+chmod +x ./scriptsPrograma/*.sh
 
 # Finalización
 echo -e "${VERDE}Instalación completada. Puedes ejecutar el programa desde 'menuPrincipal.sh'.${SC}"
