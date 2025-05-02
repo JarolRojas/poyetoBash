@@ -1,6 +1,6 @@
 === README ===
 
-Nombre del Programa: Suite de Administración de Sistemas Linux
+Nombre del Programa: Aplicación de Administración de Sistemas Linux (Ubuntu 24.04.x)
 
 Descripción:
 Este programa es una suite de herramientas diseñada para facilitar la administración de sistemas Linux. Incluye módulos para gestión de usuarios, seguridad, red, administración del sistema y conexión remota, todo integrado en un menú principal fácil de usar.
@@ -36,7 +36,7 @@ Estructura de Archivos:
 - seguridad.sh: Herramientas de seguridad.
 - red.sh: Gestión de red.
 - adminSistemas.sh: Administración del sistema.
-- conexionRemota.sh / remoto.sh: Conexión remota y configuración SSH.
+- conexionRemota.sh: Conexión remota y configuración SSH.
 - sendMail.py: Script auxiliar para envío de correos.
 
 Notas:
@@ -49,5 +49,7 @@ Este software se distribuye bajo licencia libre. Se permite su uso y modificaci�
 
 Contacto:
 Para soporte o contribuciones, contactar con el desarrollador.
+
+maipruebasclasescuatrovientos@gmail.com
 
 === FIN DEL README ===
