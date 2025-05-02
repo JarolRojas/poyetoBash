@@ -146,7 +146,7 @@ mandar_correo() {
         
         if [[ -n "$destinatario" ]]; then
             echo "Enviando $archivo_para_enviar a $destinatario..."
-            python3 sendmail.py "$archivo_para_enviar" "$destinatario"
+            python3 sendMail.py "$archivo_para_enviar" "$destinatario"
             if [[ $? -eq 0 ]]; then
                 zenity --info --title="Correo Enviado" --text="El correo fue enviado correctamente a $destinatario"
             else
